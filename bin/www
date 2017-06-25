@@ -7,12 +7,17 @@
 var app = require('../app');
 var debug = require('debug')('auto-internet-restart:server');
 var http = require('http');
+var chroot = require('chroot');
+
+function runningAsRoot() { return process.getuid() === 0; }
+
+let defaultHttpPort = (runningAsRoot()) ? '80' : '3000';
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '3000');
+var port = normalizePort(process.env.PORT || defaultHttpPort);
 app.set('port', port);
 
 /**
@@ -87,4 +92,15 @@ function onListening() {
     ? 'pipe ' + addr
     : 'port ' + addr.port;
   debug('Listening on ' + bind);
+  if(runningAsRoot()) {
+    debug('Dropping privileges to "nobody"');
+    try {
+      let cwd = process.cwd();
+      chroot('/', 'nobody');
+      process.chdir(cwd);
+    } catch(err) {
+      console.error(err);
+      process.exit(1);
+    }
+  }
 }
